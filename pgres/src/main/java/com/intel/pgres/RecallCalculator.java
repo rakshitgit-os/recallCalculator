@@ -50,10 +50,6 @@ public class RecallCalculator {
         //jdbcTemplate.execute("DROP INDEX IF EXISTS vecs_embedding_idx;");
         List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbedding, false);
 
-        //query with index
-        //jdbcTemplate.execute("CREATE INDEX ON vecs USING hnsw(embedding vector_l2_ops) WITH (m = 16, ef_construction = 64)");
-        //jdbcTemplate.execute("set hnsw.efSearch = 64");
-        //List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbedding);
 
         int count = 0;
         // calculate recall
@@ -94,22 +90,18 @@ public class RecallCalculator {
         Object[] neighborParams = new Object[] { new PGvector(queryEmbedding) };
         List<Map<String, Object>> rows = null;
         if (!useIndex) {
-            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding <-> ? LIMIT 40", neighborParams);
+            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding <-> ? LIMIT 20", neighborParams);
         } else {
-            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(1536) <-> (?)::halfvec(1536) LIMIT 40", neighborParams);
-            //rows= jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(128) <-> (select CAST(? AS halfvec)) LIMIT 50", neighborParams);
+            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(1536) <-> (?)::halfvec(1536) LIMIT 20", neighborParams);
+            //rows= jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(128) <-> (select CAST(? AS halfvec)) LIMIT 40", neighborParams);
         }
-
-        //SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(128) <-> (?)::halfvec(128) LIMIT 5;
-        //List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(128) <-> (select CAST(? AS halfvec)) LIMIT 50", neighborParams);
-
 
         List<List<Float>> nearestNeighbours= new LinkedList<>();
         for (Map row : rows) {
 
             PGobject pGobject = (PGobject) row.get("embedding");
             String str = pGobject.getValue();
-            //System.out.println("embeddings are " + str);
+            System.out.println("embeddings are " + str);
             Float[] nearestNeighbour = convertEmbeddingStrToFloatArr(str);
             nearestNeighbours.add(Arrays.asList(nearestNeighbour));
         }
