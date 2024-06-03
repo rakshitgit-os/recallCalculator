@@ -34,21 +34,21 @@ public class RecallCalculator {
     public BigDecimal calculateRecall(final String indexType) throws ClassNotFoundException, SQLException {
         //pgvtest
 
-        String query = queryStr;
-        Float [] queryEm = convertEmbeddingStrToFloatArr(query);
+        String query = getQueryEmbedding();
+        Float [] queryEmbedding = convertEmbeddingStrToFloatArr(query);
 
         // get the query embedding
-        float [] queryEmbedding = new float[1536];
+        float [] queryEmbeddingVector = new float[1536];
         for (int i = 0; i < 1536; i ++) {
-            queryEmbedding[i] =queryEm[i].floatValue();
+            queryEmbeddingVector[i] =queryEmbedding[i].floatValue();
         }
 
 
-        List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbedding, indexType);
+        List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbeddingVector, indexType);
 
         // query without index
         //jdbcTemplate.execute("DROP INDEX IF EXISTS vecs_embedding_idx;");
-        List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbedding, "fp32");
+        List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbeddingVector, "fp32");
 
 
         int count = 0;
@@ -87,12 +87,12 @@ public class RecallCalculator {
     }
 
     private List<List<Float>> getNearestNeighbours(float[] queryEmbedding, String indexType){
-        Object[] neighborParams = new Object[] { new PGvector(queryEmbedding) };
+        Object[] queryEmbeddingVector = new Object[] { new PGvector(queryEmbedding) };
         List<Map<String, Object>> rows = null;
         if (indexType.equalsIgnoreCase("fp32")) {
-            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding <-> ? LIMIT 20", neighborParams);
+            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding <-> ? LIMIT 20", queryEmbeddingVector);
         } else if (indexType.equalsIgnoreCase("fp16")){
-            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(1536) <-> (?)::halfvec(1536) LIMIT 20", neighborParams);
+            rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(1536) <-> (?)::halfvec(1536) LIMIT 20", queryEmbeddingVector);
             //rows= jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(128) <-> (select CAST(? AS halfvec)) LIMIT 40", neighborParams);
         } else {
             throw new IllegalArgumentException("invalid index type. It must be fp16 or fp32");
@@ -108,5 +108,20 @@ public class RecallCalculator {
             nearestNeighbours.add(Arrays.asList(nearestNeighbour));
         }
         return  nearestNeighbours;
+    }
+
+    private String getQueryEmbedding(){
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs LIMIT 10");
+        List<String> queryEmbeddings = new LinkedList<>();
+
+        for (Map row : rows) {
+
+            PGobject pGobject = (PGobject) row.get("embedding");
+            String str = pGobject.getValue();
+            //System.out.println("embeddings are " + str);
+            queryEmbeddings.add(str);
+        }
+        return queryEmbeddings.get(5);
     }
 }
