@@ -31,7 +31,7 @@ public class RecallCalculator {
     private String queryStr;
 
     //@PostConstruct
-    public BigDecimal calculateRecall() throws ClassNotFoundException, SQLException {
+    public BigDecimal calculateRecall(final String indexType) throws ClassNotFoundException, SQLException {
         //pgvtest
 
         String query = queryStr;
@@ -44,11 +44,11 @@ public class RecallCalculator {
         }
 
 
-        List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbedding, true);
+        List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbedding, indexType);
 
         // query without index
         //jdbcTemplate.execute("DROP INDEX IF EXISTS vecs_embedding_idx;");
-        List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbedding, false);
+        List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbedding, "fp32");
 
 
         int count = 0;
@@ -86,14 +86,16 @@ public class RecallCalculator {
         return actualEmbedding;
     }
 
-    private List<List<Float>> getNearestNeighbours(float[] queryEmbedding, boolean useIndex){
+    private List<List<Float>> getNearestNeighbours(float[] queryEmbedding, String indexType){
         Object[] neighborParams = new Object[] { new PGvector(queryEmbedding) };
         List<Map<String, Object>> rows = null;
-        if (!useIndex) {
+        if (indexType.equalsIgnoreCase("fp32")) {
             rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding <-> ? LIMIT 20", neighborParams);
-        } else {
+        } else if (indexType.equalsIgnoreCase("fp16")){
             rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(1536) <-> (?)::halfvec(1536) LIMIT 20", neighborParams);
             //rows= jdbcTemplate.queryForList("SELECT id, embedding FROM vecs ORDER BY embedding::halfvec(128) <-> (select CAST(? AS halfvec)) LIMIT 40", neighborParams);
+        } else {
+            throw new IllegalArgumentException("invalid index type. It must be fp16 or fp32");
         }
 
         List<List<Float>> nearestNeighbours= new LinkedList<>();
