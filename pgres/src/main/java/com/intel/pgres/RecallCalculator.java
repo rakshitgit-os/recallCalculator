@@ -103,12 +103,13 @@ public class RecallCalculator {
 
             PGobject pGobject = (PGobject) row.get("embedding");
             String str = pGobject.getValue();
-            System.out.println("embeddings are " + str);
+            //System.out.println("embeddings are " + str);
             Float[] nearestNeighbour = convertEmbeddingStrToFloatArr(str);
             nearestNeighbours.add(Arrays.asList(nearestNeighbour));
         }
         return  nearestNeighbours;
     }
+
 
     private String getQueryEmbedding(){
 
