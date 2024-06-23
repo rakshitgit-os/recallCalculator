@@ -19,23 +19,9 @@ public class RecallCalculatorController {
     @Autowired
     private RecallCalculator recallCalculator;
 
-    @GetMapping("/recall/{indexType}")
-    public BigDecimal getRecall(@PathVariable("indexType") String indexType) throws SQLException, ClassNotFoundException {
-        BigDecimal bb=  recallCalculator.calculateRecall(indexType);
-
-        try {
-            // Now calling Files.writeString() method
-            // with path , content & standard charsets
-            Files.writeString(Path.of("/home/intel/recallValue.txt"), bb.toBigInteger().toString(),
-                    StandardCharsets.UTF_8);
-        }
-
-        // Catch block to handle the exception
-        catch (IOException ex) {
-            // Print messqage exception occurred as
-            // invalid. directory local path is passed
-            System.out.print("Invalid Path");
-        }
+    @GetMapping("/recall/{indexType}/{dim}")
+    public BigDecimal getRecall(@PathVariable("indexType") String indexType, @PathVariable("dim") int dim) throws SQLException, ClassNotFoundException {
+        BigDecimal bb=  recallCalculator.calculateRecall(indexType, dim);
 
         return  bb;
 
