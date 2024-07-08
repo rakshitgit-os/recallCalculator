@@ -55,36 +55,6 @@ public class RecallCalculator {
         }
 
         return new BigDecimal(getRecallAverages(recallValues));
-
-
-
-
-
-        /*List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbeddingVector, indexType, dim);
-
-        // query without index
-        //jdbcTemplate.execute("DROP INDEX IF EXISTS vecs_embedding_idx;");
-        List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbeddingVector, "fp32",  dim);
-
-
-        int count = 0;
-        // calculate recall
-        for (int i=0; i < embeddingsListWithIndex.size(); i ++){
-            if(embeddingsListWithoutIndex.contains(embeddingsListWithIndex.get(i))){
-                count ++;
-            }
-        }
-
-        BigDecimal actualNoOfNearestNeighbours = new BigDecimal(embeddingsListWithoutIndex.size());
-        BigDecimal noOfAppxNearestNeighboursInActualSet = new BigDecimal(count);
-        BigDecimal recall = noOfAppxNearestNeighboursInActualSet.divide(actualNoOfNearestNeighbours, 4, RoundingMode.CEILING);
-
-        System.out.println("without index is " + embeddingsListWithoutIndex.size());
-        System.out.println("with index is is " + embeddingsListWithIndex.size());
-        System.out.println("count is " + count);
-        System.out.println("recall is " + recall);
-        return  recall;*/
-
     }
 
     private double getRecallAverages(List<BigDecimal> recallValues){
