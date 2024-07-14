@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class RecallCalculator {
@@ -34,27 +35,8 @@ public class RecallCalculator {
         //pgvtest
 
         List<String> queries = getQueryEmbedding();
-        List<BigDecimal> recallValues = new LinkedList<>();
-        for(String query : queries) {
-            Float [] queryEmbedding = convertEmbeddingStrToFloatArr(query, dim);
 
-            // get the query embedding
-            float [] queryEmbeddingVector = new float[dim];
-            for (int i = 0; i < dim; i ++) {
-                queryEmbeddingVector[i] =queryEmbedding[i].floatValue();
-            }
-
-            BigDecimal recallValue = getRecall(queryEmbeddingVector, indexType, dim);
-
-            if(indexType.equalsIgnoreCase("fp32")){
-                return new BigDecimal(recallValue.doubleValue());
-            }
-
-            recallValues.add(recallValue);
-
-        }
-
-        return new BigDecimal(getRecallAverages(recallValues));
+        return new BigDecimal(getRecallAverages(getRecall(queries, indexType, dim)));
     }
 
     private double getRecallAverages(List<BigDecimal> recallValues){
@@ -62,34 +44,54 @@ public class RecallCalculator {
         return recallValues.stream().filter((recall) -> recall != null).mapToDouble((recall) -> recall.doubleValue()).average().getAsDouble();
     }
 
-    private BigDecimal getRecall(float [] queryEmbeddingVector, String indexType, int dim) {
-        List<List<Float>> embeddingsListWithIndex = getNearestNeighbours(queryEmbeddingVector, indexType, dim);
+
+    private List<List<List<Float>>> getNearestNeighbours(List<String> queries, String indexType, int dim) {
+        List<List<List<Float>>> nearestNeighbors = new LinkedList<>();
+        for(String query : queries) {
+            Float[] queryEmbedding = convertEmbeddingStrToFloatArr(query, dim);
+
+            // get the query embedding
+            float[] queryEmbeddingVector = new float[dim];
+            for (int i = 0; i < dim; i++) {
+                queryEmbeddingVector[i] = queryEmbedding[i].floatValue();
+            }
+
+            List<List<Float>> resultEmbeddings = getNearestNeighbours(queryEmbeddingVector, indexType, dim);
+            nearestNeighbors.add(resultEmbeddings);
+        }
+        return nearestNeighbors;
+    }
+
+    private List<BigDecimal> getRecall(List<String> queries, String indexType, int dim) {
+
+        List<List<List<Float>>> embeddingsListWithIndex = getNearestNeighbours(queries, indexType, dim);
 
         // query without index
-        if(indexType.equalsIgnoreCase("fp32")) {
+        if (indexType.equalsIgnoreCase("fp32")) {
             jdbcTemplate.execute("DROP INDEX IF EXISTS vecs_embedding_idx;");
         }
 
-        List<List<Float>> embeddingsListWithoutIndex = getNearestNeighbours(queryEmbeddingVector, "fp32",  dim);
+        List<List<List<Float>>> embeddingsListWithoutIndex = getNearestNeighbours(queries, "fp32", dim);
+        List<BigDecimal> recallValues = new LinkedList<>();
 
-        int count = 0;
-        // calculate recall
-        for (int i=0; i < embeddingsListWithIndex.size(); i ++) {
-            if(embeddingsListWithoutIndex.contains(embeddingsListWithIndex.get(i))){
-                count ++;
-            }
+        for (int i = 0; i < embeddingsListWithIndex.size(); i++) {
+            List<List<Float>> queryResultWithIndex = embeddingsListWithIndex.get(i);
+            List<List<Float>> queryResultWithoutIndex = embeddingsListWithoutIndex.get(i);
+
+            long count = queryResultWithIndex.stream().filter(result -> queryResultWithoutIndex.contains(result)).collect(Collectors.toList()).stream().count();
+
+            BigDecimal actualNoOfNearestNeighbours = new BigDecimal(queryResultWithoutIndex.size());
+            BigDecimal noOfAppxNearestNeighboursInActualSet = new BigDecimal(count);
+            BigDecimal recall = noOfAppxNearestNeighboursInActualSet.divide(actualNoOfNearestNeighbours, 4, RoundingMode.CEILING);
+            recallValues.add(recall);
+
+            System.out.println("without index is " + queryResultWithoutIndex.size());
+            System.out.println("with index is is " + queryResultWithIndex.size());
+            System.out.println("count is " + count);
+            System.out.println("recall is " + recall.doubleValue());
         }
 
-        BigDecimal actualNoOfNearestNeighbours = new BigDecimal(embeddingsListWithoutIndex.size());
-        BigDecimal noOfAppxNearestNeighboursInActualSet = new BigDecimal(count);
-        BigDecimal recall = noOfAppxNearestNeighboursInActualSet.divide(actualNoOfNearestNeighbours, 4, RoundingMode.CEILING);
-
-        System.out.println("without index is " + embeddingsListWithoutIndex.size());
-        System.out.println("with index is is " + embeddingsListWithIndex.size());
-        System.out.println("count is " + count);
-        System.out.println("recall is " + recall.doubleValue());
-        return  recall;
-
+        return recallValues;
     }
 
     private Float[] convertEmbeddingStrToFloatArr(String embedding, int dim) {
@@ -134,7 +136,7 @@ public class RecallCalculator {
 
     private List<String> getQueryEmbedding(){
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs LIMIT 10");
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT id, embedding FROM vecs LIMIT 20");
         List<String> queryEmbeddings = new LinkedList<>();
 
         for (Map row : rows) {
